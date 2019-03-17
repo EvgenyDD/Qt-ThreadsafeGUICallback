@@ -2,7 +2,8 @@
 #define GUI_THREAD_HELPER_H
 
 #include <QObject>
-#include <thread_helper.h>
+#include <queue_threadsafe.h>
+#include <iostream>
 
 class QtThreadsafeUICallbackProvider : public QObject
 {
@@ -23,6 +24,8 @@ public:
         Qt::QueuedConnection);
     }
 
+    ~QtThreadsafeUICallbackProvider(){std::cout << "[DTOR]\tQtThreadsafeUICallbackProvider" << std::endl;}
+
     void pushAction(std::function<void()> &&action)
     {
         actions.push(std::forward<decltype(action)>(action));
@@ -33,7 +36,7 @@ signals:
     void actionAppended();
 
 private:
-    std::threadsafe_queue<std::function<void()>> actions;
+    std::queue_threadsafe<std::function<void()>> actions;
 };
 
 #endif // GUI_THREAD_HELPER_H

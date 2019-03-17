@@ -11,15 +11,20 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 TARGET = test
 TEMPLATE = app
 
-QMAKE_CXXFLAGS += -std=c++1z
-CONFIG += c++1z
+QMAKE_CXXFLAGS += -std=c++11
+CONFIG += c++11
 
 
 SOURCES += main.cpp\
         mainwindow.cpp
 
 HEADERS  += mainwindow.h \
-    thread_helper.h \
-    qt_gui_thread_helper.h
+    qt_gui_thread_helper.h \
+    thread_pool.h \
+    logger.h \
+    date.h \
+    queue_threadsafe.h
 
 FORMS    += mainwindow.ui
+
+LIBS = -lpsapi

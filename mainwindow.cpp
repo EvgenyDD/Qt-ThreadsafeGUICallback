@@ -14,6 +14,13 @@
 
 #include "qt_gui_thread_helper.h"
 
+
+#include<windows.h>
+#include<stdio.h>
+#include<tchar.h>
+#include "psapi.h"
+
+
 namespace RESOURCE
 {
 class TestClass
@@ -33,7 +40,7 @@ TestClass getResult()
     TestClass temp;
     {
         std::lock_guard<std::mutex> lock(s);
-        static uint32_t staticIterator=0;
+        static uint32_t staticIterator=1;
         temp.number = staticIterator++;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(2000));
@@ -44,19 +51,34 @@ TestClass getResult()
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
-    ui(new Ui::MainWindow)
+    ui(new Ui::MainWindow),
+    pool(100)
 {
     ui->setupUi(this);
 
-    provider = new QtThreadsafeUICallbackProvider();
+    provider = std::shared_ptr<QtThreadsafeUICallbackProvider>(new QtThreadsafeUICallbackProvider());
+    logger = LoggerProvider::Instance().createLogger("UI", true);
 
     time = new QLabel("Time");
     ui->statusBar->addWidget(time);
+
 
     auto timer = new QTimer();
     timer->setInterval(20);
     connect(timer, &QTimer::timeout, [&](){time->setText(QTime::currentTime().toString("<b>hh:mm:ss|zzz </b>"));});
     timer->start();
+
+    auto timer2 = new QTimer();
+    timer2->setInterval(2500);
+    connect(timer2, &QTimer::timeout, [&](){
+        PROCESS_MEMORY_COUNTERS_EX pmc;
+        GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(PROCESS_MEMORY_COUNTERS_EX));
+        SIZE_T virtualMemUsedByMe = pmc.PrivateUsage;
+
+        qDebug() << (float)(virtualMemUsedByMe/1024)*(1./1024.) << "MB" << pool.getJobCount();
+        foo();
+    });
+    timer2->start();
 }
 
 MainWindow::~MainWindow()
@@ -64,28 +86,33 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+void MainWindow::foo()
+{
+    for(uint32_t i=0; i<50; i++)
+    {
+        pool.addJob([&](){
+            auto value = RESOURCE::getResult();
+            std::shared_ptr<std::vector<int> > d(new std::vector<int>);
+            d->resize(500*1024);
+            (*d)[0]++;
+            provider->pushAction(
+
+            /* async GUI thread compatible callback */
+            [&, value, d = std::move(d)]() {
+                static int iii = 1;
+                (*d)[0]=1;
+                logger->log("Threadwork");
+                ui->pushButton->setText(QString::number(value.number) + "-" + QString::number(iii));
+                iii++;
+            });
+        });
+    }
+}
+
 void MainWindow::on_pushButton_clicked()
 {
-    for(uint32_t i=0; i<1024; i++)
-    {
-        try
-        {
-            std::thread([&](){
-                auto value = RESOURCE::getResult();
-                provider->pushAction(
-                            /* async GUI thread compatible callback */
-                            [&, value]() { ui->pushButton->setText(QString::number(value.number)); }
-                );
-            }).detach();
-        }
-        catch(const std::exception& exception)
-        {
-            qDebug() << "Exception throwed at iterator:" << i << " => " << exception.what();
-            break;
-        }
-    }
+    foo();
 
-    //    qDebug() << ">>> sleep";
-    //    QThread::msleep(5000);
-    //    qDebug() << "<<< sleep";
+    std::string str = logger->getLog();
+    std::cout << logger->getOccupiedSpace() << " " << logger->getLogCount() << " " << str << std::endl;
 }

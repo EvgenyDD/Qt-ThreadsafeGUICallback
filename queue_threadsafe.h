@@ -3,12 +3,14 @@
 
 #include <condition_variable>
 #include <queue>
+#include <memory>
+#include <iostream>
 
 namespace std
 {
 
 template<typename T>
-class threadsafe_queue
+class queue_threadsafe
 {
 private:
     mutable std::mutex mut;
@@ -16,9 +18,11 @@ private:
     std::condition_variable data_cond;
 
 public:
-    threadsafe_queue(){}
+    queue_threadsafe(){}
 
-    threadsafe_queue(threadsafe_queue const& other)
+        ~queue_threadsafe(){ std::cout << "[DTOR]\tqueue_threadsafe" << std::endl;}
+
+    queue_threadsafe(queue_threadsafe const& other)
     {
         std::lock_guard<std::mutex> lock(other.mut);
         data_queue = other.data_queue;
